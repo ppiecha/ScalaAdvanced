@@ -18,5 +18,5 @@ object TestAccountEq extends App {
   import Account.Instances.numEq2
   val a1 = Account(1, "000-1", 3.14, "me")
   val a2 = Account(2, "000-1", 3.15, "me2")
-  println(a1 === a2)
+  assert(a1 === a2)
 }
