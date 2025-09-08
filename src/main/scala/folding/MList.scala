@@ -1,6 +1,6 @@
 package folding
 
-import cats.{Eval, Foldable}
+import cats.*
 import cats.kernel.Monoid
 import cats.implicits.*
 
@@ -12,6 +12,27 @@ case object MNil extends MList[Nothing]
 
 object MList extends App {
   def apply[A](elems: A*): MList[A] = elems.foldRight(MNil: MList[A])(MCons(_, _))
+  
+  // 1. Write a functor instance for MList
+  given F: Functor[MList] = new Functor[MList] {
+    override def map[A, B](fa: MList[A])(f: A => B): MList[B] = fa match {
+      case MCons(hd, tl) => MCons(f(hd), map(tl)(f))
+      case MNil => MNil
+    }
+  }
+  // 2. Implement traverse in terms of sequence and using the functor
+  
+  given Foldable[MList] with {
+    override def foldLeft[A, B](fa: MList[A], b: B)(f: (B, A) => B): B = fa match {
+      case MCons(hd, tl) => f(foldLeft(tl, b)(f), hd)
+      case MNil => b
+    }
+    override def foldRight[A, B](fa: MList[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = fa match {
+      case MCons(hd, tl) => f(hd, foldRight(tl, lb)(f))
+      case MNil => lb
+    }
+  }
+  
   def sum(ints: MList[Int]): Int = {
     @tailrec
     def rec(ints: MList[Int], acc: Int = 0): Int = ints match {
