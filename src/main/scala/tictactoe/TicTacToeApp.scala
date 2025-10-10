@@ -138,4 +138,10 @@ Exercises:
   will execute the plays and return the final GameState
 */
 
+/*
+  type TrackedGameState = Writer[List[String], GameState]
+  type TrackedGame[A] = State[TrackedGameState, A]
+  type Game[A] = State[GameState, A]
+* */
+
 

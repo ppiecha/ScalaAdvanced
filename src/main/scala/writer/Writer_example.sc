@@ -36,6 +36,7 @@ object ShoppingCartItem {
     val product = Product.makeRaw(productId, productName, productUnitPrice).value
     ShoppingCartItem(quantity, product)
       .writer(List(s"Shopping cart item created $quantity $product"))
+  }
 }
 case class ShoppingCart(client: Client, items: List[ShoppingCartItem]) {
   def total: Double = items.map(_.total).sum

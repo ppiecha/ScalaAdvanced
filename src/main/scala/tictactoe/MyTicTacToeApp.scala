@@ -2,6 +2,7 @@ package tictactoe
 
 import cats.data.State
 import cats.*
+import cats.data.*
 import cats.implicits.*
 
 import scala.io.StdIn
@@ -23,7 +24,11 @@ object MyTicTacToeApp extends App {
   }
   
   case class GameState(turn: Player, board: Board)
-  
+  object GameState {
+
+  }
+  type TrackedGameState = Writer[List[String], GameState]
+  type TrackedGame[A] = State[TrackedGameState, A]
   type Game[A] = State[GameState, A]
   
   class Board(sz: Int, board: Map[Board.Cell, Player]) {
@@ -50,50 +55,51 @@ object MyTicTacToeApp extends App {
 
   class TicTacToe(size: Int) {
 
-    def switchTurns: State[GameState, Unit] =
-      State.modify(gameState => gameState.copy(turn = if gameState.turn == Player.P1 then Player.P2 else Player.P1))
+    def switchTurns: TrackedGame[Unit] =
+      State.modify(trackedGameState =>
+        trackedGameState.map {
+          gameState => gameState.copy(turn = if gameState.turn == Player.P1 then Player.P2 else Player.P1)
+        })
     
-    def currentPlayerWon: State[GameState, Boolean] =
-      State.get[GameState].map(gameState => {
-        val diags = gameState.board.readDiags
-        val rowsCols = List.range(0, gameState.board.size)
-          .flatMap(n => List(gameState.board.readRow(n), gameState.board.readCol(n)))
-        rowsCols.appendedAll(diags.toList).exists(line => line.forall(c => c.isDefined && c.get == gameState.turn))
+    def currentPlayerWon: TrackedGame[Boolean] =
+      State.get[TrackedGameState].map(gameState => {
+        val diags = gameState.value.board.readDiags
+        val rowsCols = List.range(0, gameState.value.board.size)
+          .flatMap(n => List(gameState.value.board.readRow(n), gameState.value.board.readCol(n)))
+        rowsCols.appendedAll(diags.toList).exists(line => line.forall(c => c.isDefined && c.get == gameState.value.turn))
       })
 
-    def doPlay(play: Play): Game[Unit] =
-      State.modify { gameState =>
-        if gameState.board.readCell(play.row, play.col).isDefined then throw new RuntimeException("Cell already defined")
-        else gameState.copy(board = gameState.board.updated(play.row, play.col, gameState.turn))
+    def doPlay(play: Play): TrackedGame[Unit] =
+      State.modify { trackedGameState =>
+        trackedGameState.tell(List(play.toString)).map(gameState => {
+          if gameState.board.readCell(play.row, play.col).isDefined then throw new RuntimeException("Cell already defined")
+          else gameState.copy(board = gameState.board.updated(play.row, play.col, gameState.turn))
+        })
       }
 
     def readMove(turn: Player): Play = {
-      println(s"what's you next move $turn:")
+      println(s"What's your next move $turn:")
       val n = StdIn.readInt()
       Play(n / 10, n % 10)
     }
 
-    def game: State[GameState, Player] =
+    def game: TrackedGame[Player] =
       for {
-        gameState <- State.get[GameState]
-        _ = println(gameState.board.show)
-        play = readMove(gameState.turn) // read move
+        gameState <- State.get[TrackedGameState]
+        _ = println(gameState.value.board.show)
+        play = readMove(gameState.value.turn) // read move
         _ <- doPlay(play)
         weHaveAWinner <- currentPlayerWon // check winner
-        winner <- if weHaveAWinner then gameState.turn.pure[Game]
+        winner <- if weHaveAWinner then gameState.value.turn.pure[TrackedGame]
                   else switchTurns >> game // switch players
       } yield winner
   }
 
-//  val b = new Board(2, Map.from(
-//    List(
-//      (0,0) -> Player.P1,
-//      (1,1) -> Player.P1
-//    )))
-//  println(b.readDiags)
   val ticTacToeGame = new TicTacToe(3)
-  val (finalState, winner) = ticTacToeGame.game.run(GameState(Player.P1, Board.emptyBoard(3))).value
-  println(finalState.board.show)
+  val (finalState, winner) = ticTacToeGame.game.run(GameState(Player.P1, Board.emptyBoard(3)).writer(Nil)).value
+  val (logs, state) = finalState.run
+  println(logs)
+  println(state.board.show)
   println(s"The winner is $winner")
 }
 
